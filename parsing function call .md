@@ -16,9 +16,11 @@ is that the string will end up with a pair of parentheses. Let's check the gramm
 
 ```js
 unary_recursive-> ("!"|"-") unary | call
-call -> primary LEFT_PAREN arguments RIGHT_PAREN
-arguemnts -> expression argument_recursive
-argumen_recursive -> COMMA arguments | EPSILON
+call -> primary  argument_list 
+argument_list -> LEFT_PAREN arguments RIGHT_PAREN argument_list_recursive
+argument_list_recursive -> argument_list | EPSILON
+arguments -> expression arguments_recursive
+arguments_recursive -> COMMA arguments | EPSILON
 ```
 
 Let's try to do some test for the grammar above, if we have a statment like getCallback()(); How the grammar aboved to parse it?  First we will go from program down the load to unary_recursive then to call,
