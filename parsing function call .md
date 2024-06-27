@@ -23,8 +23,8 @@ arguments -> expression arguments_recursive
 arguments_recursive -> COMMA arguments | EPSILON
 ```
 
-Let's try to do some test for the grammar above, if we have a statment like getCallback()(); How the grammar aboved to parse it?  First we will go from program down the load to unary_recursive then to call,
-when applying the rule of call, we first using primary rule to handle the string "getCallback", which it will match up with IDENTIFIER for the rule of primary -> IDENTIFIER, then we go back to the symbol next
-to primary which is matching the left paren, then we goes into the rule of arguments and through arguments we go into express, and from expression we go into assignment. Since the current token is RIGHT_PAREN,
-we won't do anything in assigment and simply return the symbol next 
-
+Let's try to do some test for the grammar above, if we have a statment like getCallback(1,2,3)(4,5,6); How the grammar aboved to parse it? The string "getCallback" will be parsed in primary and match by 
+IDENTIFIER, and we go into the rule of argument_list. Since the current token is LEFT_PAREN and we match the first symbol at the right of argument_list and enter the rule of arguments. Now the input symbols
+are 1,2,3 , these symbols can be matched by the arguments rule, when we first visit "1", then it will be matched by rule of expression in the right of arguments then we go into arguments_recursive, and we 
+can match the COMMA at the first symbol of right of rule arguments, then repeat for symbols "2", "," , "3", when we visit RIGHT_PARENT the rule arguments_recursive -> EPSILON will apply and we goback to
+RIGHT_PARENT of argument_list to do the match, and we go into argument_list_recursive to match the "(4,5,6)" again.
