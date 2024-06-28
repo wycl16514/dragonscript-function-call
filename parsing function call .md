@@ -66,4 +66,143 @@ describe("parsing and evaluating function calls", () => {
 })
 ```
 We have three cases in one test, first we make sure the parser can understand the normal function call, second we wish parser can understand chaining function call, third we embedded function call in the 
-arguments of a functio call. Run the test and make sure it fail.
+arguments of a functio call. Run the test and make sure it fail. Then we can add code to parser and make sure it can pass as following:
+```js
+ unary = (parentNode) => {
+        //unary ->   unary_recursive | call
+        /*
+        add function call rule, check it is beginning with "!" or "-",
+        if not then go to call rule otherwise goto unary_recursive node,
+        the call rule will do the primary rule for unary rule before
+        */
+        const unaryNode = this.createParseTreeNode(parentNode, "unary")
+        if (!this.unaryRecursive(unaryNode)) {
+            this.call(unaryNode)
+        }
+        parentNode.children.push(unaryNode)
+    }
+
+    unaryRecursive = (parentNode) => {
+        //unary_recursive -> epsilon |("!"|"-") unary
+        const opToken = this.matchTokens([Scanner.BANG, Scanner.MINUS])
+        if (opToken === null) {
+            return false
+        }
+        ...
+    }
+```
+At aboved code, we change the implementation of unary and unaryRecursive, in unary we first do the rule for unary_recursive, if the current token is "!" or "-", then method unaryRecursive return true and we will not go to the rule of call. If the
+current token is neither "!" nor "-" than we go to the rule of call. Remember the code before change, we do the rule of primary in unary, this time we do the primary rule in the rule of call which can make sure we don't break the parsing logic 
+before when we change the rule of unary.
+
+Then we will add code to do the rule for call and those rules following the call rule:
+```js
+ call = (parent) => {
+        this.primary(parent)
+        if (parent.children.length > 0 && parent.children[0].attributes) {
+            //only parsing identifier and number can have attributes
+            parent["call_name"] = parent.children[0].attributes.value
+        }
+
+        this.do_call(parent)
+    }
+
+ do_call = (parent) => {
+        if (this.matchTokens([Scanner.LEFT_PAREN])) {
+            //over the beginning (
+            this.advance()
+            const callNode = this.createParseTreeNode(parent, "call");
+            parent.children.push(callNode)
+            let callName = "anonymous_call"
+            /*
+            The anonymous_call is for function call lie getCallBack()(), the second parenthese
+            trigger another function call but this time we don't have the function name,
+            therefore we use anonymous_call as its name
+            */
+            if (parent.call_name) {
+                callName = parent.call_name
+            }
+
+            callNode.attributes = {
+                values: callName,
+            }
+            this.argument_list(callNode)
+        }
+    }
+
+ argument_list = (parent) => {
+        this.arguments(parent)
+        if (!this.matchTokens([Scanner.RIGHT_PAREN])) {
+            throw new Error("function call missing ending right paren")
+        }
+        //over the ending )
+        this.advance()
+
+        this.do_call(parent)
+
+    }
+
+    arguments = (parent) => {
+        const argumentsNode = this.createParseTreeNode(parent, "arguments")
+        parent.children.push(argumentsNode)
+        while (true) {
+            this.expression(argumentsNode)
+            if (!this.matchTokens([Scanner.COMMA])) {
+                return
+            }
+            //over the comma
+            this.advance()
+        }
+    }
+
+```
+In the call method, it will do the rule of primary first, this will get the name of the function being called, for example the line "getCallback()", the primary rule will take the string "getCallback" as identifier, then this info will save
+in the children of the parent node passed in. We will save this string as the name of the function being called, and save as field with name "function_name", then we go into the rule of do_call, in there we check whether the current token is 
+LEFT_PAREN, if it is, then we are having an indetifier string combine with a left paren, this is signature of a function call, then we begin parsing the argument list.
+
+Each argument can as simple as a number or string, or complicate as an expression or a function call. In each case we can reply on the rule of expression for parsing. Since arguments in function call are expressions sperated with comma, 
+therefore in rule of argument_list, we goto the rule of argument to do the parsing for argument, and check whether there is a comma following, if it is, then there is another argument need to do the parsing again. If we complete the parsing
+of all arguments, we need to match the right paren, then we go back to the rule of do_call again, pay attention to here, if there is another function call following such as "getCallback()()", then the second left parent after the first right
+paren will be match in do call again, then we repeat the process for argument parsing.
+
+Since we have add new nodes, then we need to add their visitor method:
+```js
+
+    addAcceptForNode = (parent, node) => {
+        switch (node.name) {
+        ...
+          case "call":
+                node.accept = (visitor) => {
+                    visitor.visitCallNode(parent, node)
+                }
+                break
+            case "arguments":
+                node.accept = (visitor) => {
+                    visitor.visitArgumentsNode(parent, node)
+                }
+                break
+       ...
+    }
+}
+```
+And add visitor methods to tree adjustor:
+```js
+visitCallNode = (parent, node) => {
+        node.parent = parent
+        this.visitChildren(node)
+    }
+
+    visitArgumentsNode = (parent, node) => {
+        node.parent = parent
+        this.visitChildren(node)
+    }
+```
+After completing the aboved code, let's run the command "recursiveparsetree gtbackcall(1,2,3)(4,5,6);" and check its parsing tree as following:
+
+![截屏2024-06-28 18 24 19](https://github.com/wycl16514/dragonscript-function-call/assets/7506958/9fdaea9e-b4a0-403b-b06b-831800bc84b7)
+
+You can see there is a node named "call" and it has value "getbackcall" as attribute, this is the name of the function being call and it has a child named "arguments", then the "arguments" node has three children which are the arguments we 
+passed to the function. Then it has second child with name "call" again, this time the call node has attribute with value "anoymous_call", this indicates that the call is derived from the first call, and it has a child node "arguments", and
+this child node has three children which are the arguemnts we passed to the second call.
+
+Then run the test again and make sure the test can be passed this time.
