@@ -15,10 +15,10 @@ Since we put all the string before the left paren as "callee", then we have two 
 is that the string will end up with a pair of parentheses. Let's check the grammar rule for function call first:
 
 ```js
-unary_recursive-> ("!"|"-") unary | call
-call -> primary  argument_list 
-argument_list -> LEFT_PAREN arguments RIGHT_PAREN argument_list_recursive
-argument_list_recursive -> argument_list | EPSILON
+unary -> unary_recursive | call
+call -> primary  do_call
+do_call -> LEFT_PARENT argument_list | EPSILON
+argument_list ->  arguments RIGHT_PAREN do_call 
 arguments -> expression arguments_recursive
 arguments_recursive -> COMMA arguments | EPSILON
 ```
@@ -28,3 +28,42 @@ IDENTIFIER, and we go into the rule of argument_list. Since the current token is
 are 1,2,3 , these symbols can be matched by the arguments rule, when we first visit "1", then it will be matched by rule of expression in the right of arguments then we go into arguments_recursive, and we 
 can match the COMMA at the first symbol of right of rule arguments, then repeat for symbols "2", "," , "3", when we visit RIGHT_PARENT the rule arguments_recursive -> EPSILON will apply and we goback to
 RIGHT_PARENT of argument_list to do the match, and we go into argument_list_recursive to match the "(4,5,6)" again.
+
+Let's see how to use code to implement the parsing of function, we add the test case first:
+```js
+describe("parsing and evaluating function calls", () => {
+    it("should enable the parsing of function call", () => {
+        let code = `
+        getCallback(1,2,3);
+        `
+        let codeToExecute = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(codeToExecute).not.toThrow()
+
+        code = `
+        getCallback(1,2,3)(4,5,6);
+        `
+        codeToExecute = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(codeToExecute).not.toThrow()
+
+        code = `
+        getCallback(getFirstArg(), getSecondArg(), getThirdArg());
+        `
+        codeToExecute = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(codeToExecute).not.toThrow()
+    })
+})
+```
+We have three cases in one test, first we make sure the parser can understand the normal function call, second we wish parser can understand chaining function call, third we embedded function call in the 
+arguments of a functio call. Run the test and make sure it fail.
