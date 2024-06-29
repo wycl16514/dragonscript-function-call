@@ -100,7 +100,7 @@ Then we will add code to do the rule for call and those rules following the call
  call = (parent) => {
         this.primary(parent)
         if (parent.children.length > 0 && parent.children[0].attributes) {
-            //only parsing identifier and number can have attributes
+            
             parent["call_name"] = parent.children[0].attributes.value
         }
 
@@ -205,4 +205,64 @@ You can see there is a node named "call" and it has value "getbackcall" as attri
 passed to the function. Then it has second child with name "call" again, this time the call node has attribute with value "anoymous_call", this indicates that the call is derived from the first call, and it has a child node "arguments", and
 this child node has three children which are the arguemnts we passed to the second call.
 
-Then run the test again and make sure the test can be passed this time.
+Then run the test again and make sure the test can be passed this time. As we mentioned before, function name can only be identifier, not other objects that can be matched up by rule of primary such as
+string, number, true, false, nil, then we need to make sure the name of function is correct, add the following test case first:
+```js
+it("should only allow indentifier as function name", () => {
+        let code = `
+        123(1,2,3);
+        `
+        let codeToParse = () => {
+            createParsingTree(code)
+        }
+        expect(codeToParse).toThrow()
+
+
+        code = `
+        "hello,world!"(1,2,3);
+        `
+        codeToParse = () => {
+            createParsingTree(code)
+        }
+        expect(codeToParse).toThrow()
+
+        code = `
+        true(1,2,3);
+        `
+        codeToParse = () => {
+            createParsingTree(code)
+        }
+        expect(codeToParse).toThrow()
+
+        code = `
+        false(1,2,3);
+        `
+        codeToParse = () => {
+            createParsingTree(code)
+        }
+        expect(codeToParse).toThrow()
+
+        code = `
+        nil(1,2,3);
+        `
+        codeToParse = () => {
+            createParsingTree(code)
+        }
+        expect(codeToParse).toThrow()
+    })
+```
+Run the test and make sure it fails. Since in the method of parsing, we attach the token object as a field for the node, then we can check the type of the token to decide currently matched token in 
+primary is identifier or not, then in method do_call we do following:
+```js
+ do_call = (parent) => {
+        if (this.matchTokens([Scanner.LEFT_PAREN])) {
+            //only identifier is allowed to be name of function
+            if (parent.children.length > 0 &&
+                parent.children[0].token &&
+                parent.children[0].token.token !== Scanner.IDENTIFIER) {
+                throw new Error("function name illegal")
+            }
+      ....
+}
+```
+Then run the test and make sure it can be passed.
