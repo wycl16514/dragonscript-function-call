@@ -265,4 +265,32 @@ primary is identifier or not, then in method do_call we do following:
       ....
 }
 ```
-Then run the test and make sure it can be passed.
+Then run the test and make sure it can be passed. Now let's see how to declare and define function, we make test case first:
+```js
+it("should enable parsing function declaration", () => {
+        let code = `
+        func doSomeThing(a, b, c) {
+            var d = a+b+c;
+            print(d);
+        }
+        `
+        let codeToParse = () => {
+            createParsingTree(code)
+        }
+        expect(codeToParse).not.toThrow()
+    })
+```
+Run the test and make sure it fail. The declaration of function begins with keyword func then following is the name of function which is
+identifier, and left paren following the function name, and it is parameter list which is identifiers separted with comma and right paren
+is the ending. After the function name and parameter list, following is a block.
+
+Therefore we have following grammar for function declaration:
+
+declaration -> func_decl | var_decl | statement
+func_decl -> FUNC function
+function -> IDENTIFIER LEFT_PAREN parameters RIGHT_PAREN block
+paremeters -> identifier_list | EPSILON
+identifier_list -> IDENTIFIER identifier_list_recursive
+identifier_list_recursive -> COMMA identifier_list | EPSILON
+
+
