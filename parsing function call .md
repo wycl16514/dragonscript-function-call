@@ -286,11 +286,125 @@ is the ending. After the function name and parameter list, following is a block.
 
 Therefore we have following grammar for function declaration:
 
-declaration -> func_decl | var_decl | statement
+declaration_recursive -> func_decl | var_decl | statement
+
 func_decl -> FUNC function
+
 function -> IDENTIFIER LEFT_PAREN parameters RIGHT_PAREN block
+
 paremeters -> identifier_list | EPSILON
+
 identifier_list -> IDENTIFIER identifier_list_recursive
+
 identifier_list_recursive -> COMMA identifier_list | EPSILON
 
+Now we can add code to implement the parsing rules aboved:
 
+```js
+declarationRecursive = (parent) => {
+    ....
+     //if current token is FUNC, goto func_decl
+        token = this.matchTokens([Scanner.FUNC])
+        if (token) {
+            //over keyword func
+            this.advance()
+            this.funcDecl(declNode)
+            return
+        }
+    ....
+}
+
+funcDecl = (parent) => {
+        const funcDeclNode = this.createParseTreeNode(parent, "func_decl")
+        parent.children.push(funcDeclNode)
+        //we do function rule in here
+        let token = this.matchTokens([Scanner.IDENTIFIER])
+        if (!token) {
+            throw new Error("function declaration missing function name")
+        }
+        //over function name
+        this.advance()
+        funcDeclNode["func_name"] = token.lexeme
+
+        token = this.matchTokens([Scanner.LEFT_PAREN])
+        if (!token) {
+            throw new Error("function declaration missing left paren")
+        }
+        //over left paren
+        this.advance()
+        this.parameters(funcDeclNode)
+
+        token = this.matchTokens([Scanner.RIGHT_PAREN])
+        if (!token) {
+            throw new Error("function declaration missing right paren")
+        }
+        //over right paren
+        this.advance()
+        this.block(funcDeclNode)
+    }
+
+    parameters = (parent) => {
+        const parametersNode = this.createParseTreeNode(parent, "parameters")
+        parent.children.push(parametersNode)
+
+        //parameter -> identifier_list | EPSILON
+        const parametersList = []
+        while (true) {
+            let token = this.matchTokens([Scanner.IDENTIFIER])
+            if (!token) {
+                break
+            }
+            this.advance()
+            //record the name of each argument
+            parametersList.push(token.lexeme)
+            token = this.matchTokens([Scanner.COMMA])
+            if (!token) {
+                break
+            }
+            this.advance()
+        }
+
+        parametersNode.attributes = {
+            value: parametersList,
+        }
+    }
+
+ addAcceptForNode = (parent, node) => {
+        switch (node.name) {
+        ....
+         case "func_decl":
+                node.accept = (visitor) => {
+                    visitor.visitFuncDeclNode(parent, node)
+                }
+                break
+            case "parameters":
+                node.accept = (visitor) => {
+                    visitor.visitParametersNode(parent, node)
+                }
+                break
+    。。。。
+   }
+}
+```
+Since we add new nodes to parsing tree, we need to add visitor methods to tree adjustor:
+```js
+ visitFuncDeclNode = (parent, node) => {
+        node.parent = parent
+        this.visitChildren(node)
+    }
+
+    visitParametersNode = (parent, node) => {
+        node.parent = parent
+        this.visitChildren(node)
+    }
+```
+After completing the aboved code, let's using following command to check its parsing tree first:
+
+```js
+recursiveparsetree func doSomething(a,b,c) {print(a);}
+```
+Then we get the following parsing tree:
+
+![截屏2024-06-30 14 07 57](https://github.com/wycl16514/dragonscript-function-call/assets/7506958/1449f947-ad83-49f3-a7fe-98349eee79f0)
+
+Now run the test again and make sure it passed.
