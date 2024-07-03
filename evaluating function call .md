@@ -164,4 +164,36 @@ removed the local enviroment and local call map, this is just like we go out of 
 The method of visitArgumentsNode is used to evaluate the value that will pass to the function of being called, and when visitFuncDeclNode is called, it means we are having a functin declaration, then
 we add the func_decl node to the call map as value with the function name as key.
 
-After completing aboved code, run the test again and make sure it can be passed.
+After completing aboved code, run the test again and make sure it can be passed. Since we have function object, we need to consider 
+error relates to function, let's check some test cases:
+```js
+it("should not allow to assign value to function name", () => {
+        let code = `
+        func doSomething() {print("something");}
+        doSomething = 1;
+        `
+        const executeCode = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(executeCode).toThrow()
+    })
+```
+We need to check the identifier being assigned is variabe not name of function, therefore we add code like following:
+```js
+ visitAssignmentNode = (parent, node) => {
+        this.visitChildren(node)
+        if (node.attributes) {
+            const name = node.attributes.value
+            const val = node.evalRes
+            //check the name is function name or not
+            if (this.runTime.getFunction(name)) {
+                throw new Error("can't assign value to function name")
+            }
+            this.runTime.bindGlobalVariable(name, val)
+        }
+        this.attachEvalResult(parent, node)
+    }
+```
+
