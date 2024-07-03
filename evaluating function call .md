@@ -64,18 +64,104 @@ export default class RunTime {
         }
     }
 
-    getFunction = (funcName) => {
+   getFunction = (funcName) => {
         for (let i = this.callMap.length - 1; i >= 0; i--) {
-            if (!this.callMap[funcName]) {
-                return this.callMap[funcName]
+            const callMap = this.callMap[i]
+            if (callMap[funcName]) {
+                return callMap[funcName]
             }
         }
+    }
+
+    addFunction = (funcName, funcNode) => {
+        const callMap = this.callMap[this.callMap.length - 1]
+        callMap[funcName] = funcNode
     }
 ...
 }
 ```
-We design call map as a chain just like enviroment that's because function can be declared in a local block or in function body, and when there is a function call, we need to look for the root node of the function from the inner most call map 
-first just like we access a variable inside a block, a function can be called if the function is declared outside of the current block or scope. Now turn into intepreter.js and do the following code:
-```js
+We design call map as a chain just like enviroment that's because function can be declared in a local block or in function body, and when there is a function call,we need to look for the root node of 
+the function from the inner most call map first just like we access a variable inside a block, a function can be called if the function is declared outside of the current block or scope. 
 
+Now turn into intepreter.js and do the following code:
+```js
+fillCallParams = (funcRoot, callNode) => {
+        /*
+        check the function being call need parameters or not, if needed,
+        evaluate the arguments and fill those arguments to the local enviroment
+        of the function being call
+        */
+        if (funcRoot.children[0].attributes.value &&
+            funcRoot.children[0].attributes.value.length) {
+            //evaluate arguments
+            const args = callNode.children[0]
+            this.visitChildren(args)
+            //get name of each parameter
+            let paraNames = funcRoot.children[0].attributes.value
+            for (let i = 0; i < paraNames.length; i++) {
+                this.runTime.bindLocalVariable(paraNames[i], args.children[i].evalRes)
+            }
+        }
+    }
+
+    visitCallNode = (parent, node) => {
+        //get the function name
+        const callName = node.attributes.values
+        if (callName !== "anonymous_call") {
+            const funcRoot = this.runTime.getFunction(callName)
+            if (funcRoot) {
+                this.runTime.addCallMap()
+                this.runTime.addLocalEnv()
+                this.fillCallParams(funcRoot, node)
+                //evaluate the body of the function
+                funcRoot.children[1].accept(this)
+
+                let evalRes = funcRoot.evalRes
+                if (!evalRes) {
+                    evalRes = {
+                        type: "NIL",
+                        value: "null"
+                    }
+                }
+                node.evalRes = evalRes
+
+                this.runTime.removeLocalEnv()
+                this.runTime.removeCallMap()
+            }
+        } else {
+            // TODO
+        }
+
+        this.attachEvalResult(parent, node)
+    }
+
+    visitArgumentsNode = (parent, node) => {
+        node.parent = parent
+        this.visitChildren(node)
+    }
+
+    visitFuncDeclNode = (parent, node) => {
+        //add the function name and node to call map
+        this.runTime.addFunction(node["func_name"], node)
+    }
+
+    visitParametersNode = (parent, node) => {
+        //we dont't do anything for it
+    }
 ```
+method fillCallParams used for setting the value for arugments of the function being called, it gets the name of parameters from the node of func_decl, and evaluate the children of node call which is
+the expressions for arguments, then set the evaluated results with the name of parameters in the local enviroment we set up for the function, just notice the function body is just like a local scope.
+
+When the visitCallNode is runned, which means we begin to executed the function call. We handle named function call first , we use the function name to query the func_decl node from the call map,
+and we set up the running enviroment for the function, that is setting up a local call map and local enviroment for it. We set up the local call map because there may have new function declared inside
+the function body. Then we call fillCallParams to set up the arguments in the local enviroment for the function body. Function arguments are just like variables that are defined and assigned at the 
+local scope.
+
+Then we get the block node from the func_decl node which is the second child of func_decl node, and we evaluate the block by using the same intepreter. After evaluating the function body, we check
+there is any returned value or not(we havn't design the function return yet), if function returns none, we set the return value to be NIL. After completing the evaluation of the function body, we
+removed the local enviroment and local call map, this is just like we go out of a scope.
+
+The method of visitArgumentsNode is used to evaluate the value that will pass to the function of being called, and when visitFuncDeclNode is called, it means we are having a functin declaration, then
+we add the func_decl node to the call map as value with the function name as key.
+
+After completing aboved code, run the test again and make sure it can be passed.
