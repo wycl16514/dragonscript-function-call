@@ -329,5 +329,82 @@ need to check this when we fill in parameters for function calling:
 }
 ```
 
-That's are some cases we think about now, we may add more in the futhure.
+That's are some cases we think about now, we may add more in the futhure.Now we can add return statement for function, we can pass result
+from the function body to ourside. The grammar rule for return statement is simple as following:
+
+statement -> returnStmt
+returnStmt -> RETURN return_expr 
+return_expr -> SEMICOLON | expression SEMICOLON
+
+Let's add a test case for it as following:
+```js
+it("should enable to parse return statement", () => {
+        let code = `
+        func getSomething(a, b) {return a+b;}
+        `
+
+        let parseCode = () => {
+            createParsingTree(code)
+        }
+
+        expect(parseCode).not.toThrow()
+    })
+```
+Then we add code to implement the grammar rule aboved:
+```js
+statement = (parent) => {
+    ....
+     //get return keyword then parse return statement
+        token = this.matchTokens([Scanner.RETURN])
+        if (token) {
+            this.advance()
+            this.returnStmt(stmtNode)
+            parent.children.push(stmtNode)
+            return
+        }
+    ....
+}
+
+ matchSemicolon = () => {
+        let token = this.matchTokens([Scanner.SEMICOLON])
+        if (token) {
+            //return_expr -> SEMICOLON
+            this.advance()
+            return true
+        }
+
+        return false
+    }
+
+    returnStmt = (parent) => {
+        const returnNode = this.createParseTreeNode(parent, "return")
+        parent.children.push(returnNode)
+        if (this.matchSemicolon()) {
+            return
+        }
+
+        //return_expr -> expression SEMICOLON
+        this.expression(returnNode)
+        if (!this.matchSemicolon()) {
+            throw new Error("return statement missing semicolon")
+        }
+    }
+
+addAcceptForNode = (parent, node) => {
+        switch (node.name) {
+        ....
+         case "return":
+                node.accept = (visitor)=> {
+                    visitor.visitReturnNode(parent, node)
+                }
+        }
+    }
+```
+Since we add a new node, then we should add the visitor method to tree adjustor:
+```js
+ visitReturnNode = (parent, node) => {
+        this.visitChildren(node)
+    }
+```
+After completing aboved code, make sure the newly test case can be passed.
 
