@@ -196,4 +196,138 @@ We need to check the identifier being assigned is variabe not name of function, 
         this.attachEvalResult(parent, node)
     }
 ```
+The second case we need to consider is as name collision of variable and function:
+```js
+ it("should not allow name collision of variable and function", () => {
+        let code = `
+        func doSomething() {print("something");}
+        var doSomething;
+        `
+        let executeCode = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(executeCode).toThrow()
+
+        code = `
+        var doSomething;
+        func doSomething() {print("something");}
+        `
+        executeCode = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(executeCode).toThrow()
+    })
+```
+In the aboved case, we consider two cases, the first is function declaration before variable definition, the second is function declaration after variable definition, the we add the following code to
+make it passes: 
+```js
+visitVarDeclarationNode = (parent, node) => {
+    ....
+      /*
+        avoid name collision with function
+        */
+        if (this.runTime.getFunction(variableName)) {
+            throw new Error("variable name collection with defined function")
+        }
+    ....
+}
+
+visitFuncDeclNode = (parent, node) => {
+        let collisionWithVar = false
+        //prevent collision with variable name
+        try {
+            this.runTime.getVariable(node["func_name"])
+            collisionWithVar = true
+        } catch (err) {
+            //if there is not name collection with variable, 
+            //getVariable will cause execpetion 
+        }
+
+        if (!collisionWithVar) {
+            //add the function name and node to call map
+            this.runTime.addFunction(node["func_name"], node)
+        } else {
+            throw new Error("function name collision with defined variable")
+        }
+
+    }
+```
+Let's see another case:
+```js
+ it("should not allow more than one function with the same name", () => {
+        let code = `
+        func doSomething() {print("something");}
+        func doSomething(a,b) {print(a); print(b);}
+        `
+        let executeCode = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(executeCode).toThrow()
+    })
+```
+We need to check whether the function name is already exist when we add the given function to call map as following:
+```js
+ visitFuncDeclNode = (parent, node) => {
+    ....
+ if (!collisionWithVar) {
+            //check name already exist 
+            if (this.runTime.getFunction(node["func_name"])) {
+                throw new Error("Fuction already declared")
+            }
+            //add the function name and node to call map
+            this.runTime.addFunction(node["func_name"], node)
+        } else {
+            throw new Error("function name collision with defined variable")
+        }
+}
+```
+Then we think about the mismatch between parameters in function declaration and function calling:
+```js
+it("should make sure arguments in calling match parameters in function declaration", () => {
+        let code = `
+        var a = 1;
+        func doSomething() {print("something");}
+        doSomething(a);
+        `
+        let executeCode = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(executeCode).toThrow()
+
+        code = `
+        func doSomething(a, b) {print("something");}
+        var a = 1;
+        doSomething(a);
+        `
+        executeCode = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(executeCode).toThrow()
+    })
+```
+In the aboved case, we consider two cases, one is arguments in the calling are more than parameters in declaration, the second is arguments in calling are less than parameters in declaration. And we
+need to check this when we fill in parameters for function calling:
+```js
+ fillCallParams = (funcRoot, callNode) => {
+        //make sure arguments in calling match up to parameters in declaration
+        const args = callNode.children[0]
+        if (args.children.length !==
+            funcRoot.children[0].attributes.value.length) {
+            throw new Error("arguments in calling mismatch parameters in declaration")
+        }
+    ....
+}
+```
+
+That's are some cases we think about now, we may add more in the futhure.
 
