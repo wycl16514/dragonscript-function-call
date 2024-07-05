@@ -532,5 +532,55 @@ statement, we add a field name "is_return", this is what we have done in visitRe
 return keyword is followed by an expression, then we do evaluate the expression, get its result and use the result as the result returned by the return statement, if there is not expression following
 the return keyword, we construct a nil result.
 
-After completing the code aboved, run the test again and make sure it can be passed.
+After completing the code aboved, run the test again and make sure it can be passed. The same as continue or break, we need to make sure return statement can only appear inside the body of function,
+let's add a test case for it:
+```js
+it("should only allow return statement inside function body", () => {
+        let code = `
+        var a = 1;
+        return a;
+        var b = 2;
+        `
+        let codeToExecute = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+
+        expect(codeToExecute).toThrow()
+    })
+```
+Run the case and make sure it fails. Now we add code to make it passed. Just like how we do for continue and break, we use an indicator to check whether the return statement is inside a function body 
+or not:
+```js
+export default class Intepreter {
+    constructor() {
+    ...
+    this.inFunc = false
+    }
+
+     visitCallNode = (parent, node) => {
+     ...
+     if (funcRoot) {
+     ...
+     this.inFunc = true
+     ...
+      this.runTime.removeLocalEnv()
+      this.runTime.removeCallMap()
+      this.inFunc = false
+      } else {
+       //TODO
+      }
+     this.attachEvalResult(parent, node)
+    }
+
+visitReturnNode = (parent, node) => {
+        //check is in function body
+        if (!this.inFunc) {
+            throw new Error("return only allowed in function body")
+        }
+    ...
+}
+```
+After having the aboved code, make sure the test case can be passed.
 
