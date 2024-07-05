@@ -333,7 +333,9 @@ That's are some cases we think about now, we may add more in the futhure.Now we 
 from the function body to ourside. The grammar rule for return statement is simple as following:
 
 statement -> returnStmt
+
 returnStmt -> RETURN return_expr 
+
 return_expr -> SEMICOLON | expression SEMICOLON
 
 Let's add a test case for it as following:
@@ -406,5 +408,113 @@ Since we add a new node, then we should add the visitor method to tree adjustor:
         this.visitChildren(node)
     }
 ```
-After completing aboved code, make sure the newly test case can be passed.
+After completing aboved code, make sure the newly test case can be passed. The evaluation of return statement just like the continue or break statement, after executing it, all statements that 
+following the return statement will be ignored by the intepreter. Let's add the test case first:
+```js
+ it("should evaluate return statement correctly", () => {
+        let code = `
+        var a = 1;
+        func getSomething(b,c) {
+            return b+c;
+            a = 2;
+        }
+        var d = getSomething(1,2);
+        print(d);
+        print(a);
+        `
+
+        let root = createParsingTree(code)
+        let intepreter = new Intepreter()
+        root.accept(intepreter)
+        console = intepreter.runTime.console
+        expect(console.length).toEqual(2)
+        expect(console[0]).toEqual(3)
+        expect(console[1]).toEqual(1)
+    })
+```
+Run the test make sure it fails and we add code to make it pass, we will handle return just like handling break or continue, therefore in intepreter.js:
+```js
+export default class Intepreter {
+    constructor() {
+        this.runTime = new RunTime();
+        //flag for continue and break
+        this.isContinue = false
+        this.isBreak = false
+
+        this.inLoop = false
+
+        this.isReturn = false
+    }
+
+    ....
+     visitDeclarationRecursiveNode = (parent, node) => {
+        for (const child of node.children) {
+            child.accept(this)
+            ....
+            
+            if (this.isReturn) {
+                this.isReturn = false
+                //stop executing after return statement
+                break
+            }
+        }
+        this.attachEvalResult(parent, node)
+    }
+
+     visitCallNode = (parent, node) => {
+        //get the function name
+        const callName = node.attributes.values
+        if (callName !== "anonymous_call") {
+            const funcRoot = this.runTime.getFunction(callName)
+            if (funcRoot) {
+                ....
+                let evalRes = funcRoot.evalRes
+                /*
+                if the evalRes dosen't have is_return field, then we set the return
+                value of function to nil
+                */
+                if (!evalRes["is_return"]) {
+                    evalRes = {
+                        type: "NIL",
+                        value: "null"
+                    }
+                }
+                node.evalRes = evalRes
+
+                ....
+            }
+        } else {
+            // TODO
+        }
+
+        this.attachEvalResult(parent, node)
+    }
+
+    visitReturnNode = (parent, node) => {
+        this.isReturn = true
+        if (node.children.length > 0) {
+            this.visitChildren(node)
+        } else {
+            node.evalRes = {
+                type: "NIL",
+                value: "null"
+            }
+        }
+        //this field indicated the value is returned by return
+        node.evalRes["is_return"] = true
+        this.attachEvalResult(parent, node)
+    }
+}
+```
+In aboved code, we set up a flag "isReturn" to indicate if the return statement is encountered or not, if it is, then the flag will set to true. When the body of function is running, all statements
+inside the function body will be executed one by one, this is done in visitDeclarationRecursiveNode, which child node in the loop is one statement, after finish the execution of one statement, it 
+checks whether a return statement is executed, if it is, the flag isReturn is set to true, then the loop will stop immediately.
+
+When the function is complete of execution, we need to check the return value of the function, at before, the evaluation result of a block is the same result of the evaluation result of the last line.
+This will bring confusion to us that whether the result is returned by a return statement or caused by the last line in the function body. In order to differentiate the two, when we execute the return
+statement, we add a field name "is_return", this is what we have done in visitReturnNode method. In this methond it first check whehter the return node has any children, if it has which means the 
+return keyword is followed by an expression, then we do evaluate the expression, get its result and use the result as the result returned by the return statement, if there is not expression following
+the return keyword, we construct a nil result.
+
+After completing the code aboved, run the test again and make sure it can be passed.
 
