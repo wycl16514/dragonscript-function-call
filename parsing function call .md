@@ -145,6 +145,10 @@ Then we will add code to do the rule for call and those rules following the call
     arguments = (parent) => {
         const argumentsNode = this.createParseTreeNode(parent, "arguments")
         parent.children.push(argumentsNode)
+        //check empty arguments
+        if (this.matchTokens([Scanner.RIGHT_PAREN])) {
+            return
+        }
         while (true) {
             this.expression(argumentsNode)
             if (!this.matchTokens([Scanner.COMMA])) {
