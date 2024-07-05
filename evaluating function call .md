@@ -430,6 +430,22 @@ following the return statement will be ignored by the intepreter. Let's add the 
         expect(console.length).toEqual(2)
         expect(console[0]).toEqual(3)
         expect(console[1]).toEqual(1)
+
+        code = `
+        var a = 1;
+        func doSomething() {
+           a = 2;
+        }
+        var d = doSomething();
+        print(d);
+        `
+
+        root = createParsingTree(code)
+        intepreter = new Intepreter()
+        root.accept(intepreter)
+        console = intepreter.runTime.console
+        expect(console.length).toEqual(1)
+        expect(console[0]).toEqual("null")
     })
 ```
 Run the test make sure it fails and we add code to make it pass, we will handle return just like handling break or continue, therefore in intepreter.js:
