@@ -582,5 +582,61 @@ visitReturnNode = (parent, node) => {
     ...
 }
 ```
-After having the aboved code, make sure the test case can be passed.
+After having the aboved code, make sure the test case can be passed. Let's think twice, the way we check return inside function body is correct enough, check about the following test case:
+```js
+    it("should evaluate function delcared inside function", () => {
+        let code = `
+        func makeCounter() {
+            var i = 0;
+            func count() {
+                i = i+1;
+            }
+            count();
+            return i;
+        }
+        var a = makeCounter();
+        print(a);
+        `
+
+        let root = createParsingTree(code)
+        let intepreter = new Intepreter()
+        root.accept(intepreter)
+        console = intepreter.runTime.console
+        expect(console.length).toEqual(1)
+        expect(console[0]).toEqual(1)
+    })
+```
+Running the test will get an exception for return not inside function body, that's because when we finish the execution of the function inside another function, we set the flag isReturn to false,
+but at that time, we still inside the body of the wrapping function, the way we solve it is change isReturn from bool to counter, each time we inside a function we increase the counter, and decrease
+the counter when we complete the execution of function. And when we handle the return statement, we check the counter more than 0 or not, if it is more than 0 than we make sure we sitll inside the
+body of function, therefore we have the following changes:
+```js
+constructor() {
+  ....
+   this.inFunc = 0
+}
+
+visitCallNode = (parent, node) => {
+    ....
+    if (funcRoot) {
+        this.runTime.addCallMap()
+        this.runTime.addLocalEnv()
+        this.inFunc += 1
+        ....
+         this.runTime.removeLocalEnv()
+         this.runTime.removeCallMap()
+         this.inFunc -= 1
+    }
+   ...
+}
+
+ visitReturnNode = (parent, node) => {
+        //check is in function body
+        if (this.inFunc <= 0) {
+            throw new Error("return only allowed in function body")
+        }
+    ....
+ }
+```
+Run the test again and make sure it is ok
 
