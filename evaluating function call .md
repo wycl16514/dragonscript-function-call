@@ -638,5 +638,114 @@ visitCallNode = (parent, node) => {
     ....
  }
 ```
-Run the test again and make sure it is ok
+Run the test again and make sure it is ok. Finally let's do the evaluation for annonymous function. Annoymous function is function without
+a name, it is muck like lambda or clousre, one speciality of it is it can be assigned to varaible, let's add the case first:
+```js
+it("should enable annonymous function to be assignable", () => {
+        let code = `
+            var a = func (b,c) {
+                return b+c;
+            }
+            var b = a(1,2);
+            print(b);
+        `
+        let root = createParsingTree(code)
+        let intepreter = new Intepreter()
+        root.accept(intepreter)
+        console = intepreter.runTime.console
+        expect(console.length).toEqual(1)
+        expect(console[0]).toEqual(3)
+    })
+```
+Run the case and make sure it fails. In order to support annonymous, we need to enable function declaration withou a name, therefore we
+make the following changes in parser:
+```js
+ funcDecl = (parent) => {
+        const funcDeclNode = this.createParseTreeNode(parent, "func_decl")
+        parent.children.push(funcDeclNode)
+        //we do function rule in here
+        let token = this.matchTokens([Scanner.IDENTIFIER])
+        //enable function declaration without a name
+        if (token && token.lexeme) {
+            //over function name
+            this.advance()
+            funcDeclNode["func_name"] = token.lexeme
+        }
+       ...
+}
+```
+
+In aboved code, we allow the name of function to be empty.In order to make function to be assignable, 
+we need change in the rule for primary, and we make the changes as following:
+```js
+primary = (parentNode) => {
+        //add an identifier
+        //primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" |IDENTIFIER| epsilon
+        //enable function to be assignable
+        const token = this.matchTokens([Scanner.NUMBER, Scanner.STRING,
+        Scanner.TRUE, Scanner.FALSE, Scanner.NIL,
+        Scanner.LEFT_PAREN, Scanner.IDENTIFIER,
+        Scanner.FUNC
+        ])
+        if (token === null) {
+            //primary -> epsilon
+            return false
+        }
+
+        const primary = this.createParseTreeNode(parentNode, "primary")
+        /*
+        if it is left parenthese, then we set the node value to grouping
+        and append the expression as the child node of primary
+        */
+        //primary -> "(" expression ")"
+        if (token.token === Scanner.LEFT_PAREN) {
+            this.expression(primary)
+            if (!this.matchTokens([Scanner.RIGHT_PAREN])) {
+                throw new Error("Miss matching ) in expression")
+            }
+
+            primary.attributes = {
+                value: "grouping",
+            }
+            //scann over )
+            this.advance()
+        }
+        //check it is assignning function or not
+        else if (token.token === Scanner.FUNC) {
+            //over keyword func
+            this.advance()
+            this.funcDecl(primary)
+        }
+        else {
+            primary.attributes = {
+                value: token.lexeme,
+            }
+            primary.token = token
+            this.advance()
+        }
+
+        parentNode.children.push(primary)
+        return true
+    }
+```
+In the aboved code, we do the parsing of function declaration as a child node of primary node, then it can be assigned just like number
+or string can be assign to variable. Then when the intepreter visit the node of func_decl, we will return an evaluation result with type
+func and value as the node itself, change the code in intepreter.js:
+
+```js
+visitFuncDeclNode = (parent, node) => {
+    ...
+     //construct evaluation result of this node
+        node.evalRes = {
+            type: "func",
+            value: node,
+        }
+        this.attachEvalResult(parent, node)
+}
+```
+Now when we have a function code, the name of the calling function it is likely to be an identifier instead of function name, therefore
+when handling function calling, we need to check the name in call map and in local enviroment:
+```js
+
+```
 
