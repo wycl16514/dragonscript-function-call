@@ -733,7 +733,18 @@ primary = (parentNode) => {
 ```
 In the aboved code, we do the parsing of function declaration as a child node of primary node, then it can be assigned just like number
 or string can be assign to variable. Then when the intepreter visit the node of func_decl, we will return an evaluation result with type
-func and value as the node itself, change the code in intepreter.js:
+func and value as the node itself. Since primary node can have child which is func_decl node this time, we need to readjust its child in tree adjustor in tree_adjustor_visitor.js:
+```js
+   visitPrimaryNode = (parent, node) => {
+        /*
+        it is possilbe it will contain func_decl node, and need to readjust its 
+        parsing tree
+        */
+        this.visitChildren(node)
+    }
+```
+
+now its time to change the code in intepreter.js:
 
 ```js
 visitFuncDeclNode = (parent, node) => {
@@ -749,6 +760,36 @@ visitFuncDeclNode = (parent, node) => {
 Now when we have a function code, the name of the calling function it is likely to be an identifier instead of function name, therefore
 when handling function calling, we need to check the name in call map and in local enviroment:
 ```js
-
+ visitCallNode = (parent, node) => {
+        //get the function name
+        const callName = node.attributes.values
+        if (callName !== "anonymous_call") {
+            let funcRoot = this.runTime.getFunction(callName)
+            if (!funcRoot) {
+                //the name of calling may be an identifier
+                //since annonymous function can be assigned to identifier
+                const val = this.runTime.getVariable(callName)
+                funcRoot = val.value
+            }
+         ...
+      }
+    ...
+}
 ```
+
+And because function can be assignable, then in primary we need to construct the assign value:
+```js
+visitPrimaryNode = (parent, node) => {
+    ....
+    switch (token.token) {
+            case Scanner.FUNC:
+                type = "func"
+                value = node.children[0]
+                break
+     ...
+    }
+     ....
+}
+```
+After completing aboved code, try to run the test and make sure it passed.
 
