@@ -699,6 +699,9 @@ primary = (parentNode) => {
         */
         //primary -> "(" expression ")"
         if (token.token === Scanner.LEFT_PAREN) {
+            //over left paren
+            this.advance()
+
             this.expression(primary)
             if (!this.matchTokens([Scanner.RIGHT_PAREN])) {
                 throw new Error("Miss matching ) in expression")
