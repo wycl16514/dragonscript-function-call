@@ -791,5 +791,43 @@ visitPrimaryNode = (parent, node) => {
      ....
 }
 ```
-After completing aboved code, try to run the test and make sure it passed.
+After completing aboved code, try to run the test and make sure it passed. We bring in new thing which is enable function call base on variable, but if we are calling a variable which
+is not assigned with function, then it should be error, as the following case:
+```js
+it("should not allow function call on normal variable", () => {
+        let code = `
+            var a = 1;
+            a(1,2);
+        `
+        let codeToExecute = () => {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+        expect(codeToExecute).toThrow()
+    })
+```
+Run the aboved case you may find it passes. But the code causes the intepreter to break down which is not our intention, there we need to add code to prevent it as following:
+```js
+ visitCallNode = (parent, node) => {
+        //get the function name
+        const callName = node.attributes.values
+        if (callName !== "anonymous_call") {
+            let funcRoot = this.runTime.getFunction(callName)
+            if (!funcRoot) {
+                //the name of calling may be an identifier
+                //since annonymous function can be assigned to identifier
+                const val = this.runTime.getVariable(callName)
+                //need to make sure the variable assigned with function
+                if (val.type !== "func") {
+                    throw new Error("can not call on variable never assigend with function")
+                }
+                funcRoot = val.value
+            }
+        ...
+        }
+    ...
+}
+```
+By changing aboved code, we can make sure our intepreter can throw out exception instead of breaking down.
 
