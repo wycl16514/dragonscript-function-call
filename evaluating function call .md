@@ -829,5 +829,160 @@ Run the aboved case you may find it passes. But the code causes the intepreter t
     ...
 }
 ```
-By changing aboved code, we can make sure our intepreter can throw out exception instead of breaking down.
+By changing aboved code, we can make sure our intepreter can throw out exception instead of breaking down. Finally let's see how to handle annoymous function chain call as following:
+```js
+it("should evaluate annonymous function chain call", () => {
+        let code = `
+        var a = 1;
+        var b = func (num) {
+            a = a + num;
+            return func (num1, num2) {
+                a = a + num1 + num2;
+                return func(num3) {
+                    return a + num3;
+                };
+            };
+        };
 
+        b(1)(2,3)(4);
+        print(a);
+        `
+
+        let root = createParsingTree(code)
+        let intepreter = new Intepreter()
+        root.accept(intepreter)
+        console = intepreter.runTime.console
+        expect(console.length).toEqual(1)
+        expect(console[0]).toEqual(11)
+    })
+
+```
+
+No wander the code like "b(1)(2,3)(4);" it is very very urgly, but it is allow, no matter how good you design your language, there are always someone to write urgly shit code.Let's see
+how we can evaluate the code. It is better to check its parsing tree first, try running the following command at the web console:
+```js
+recursiveparsetree var a=1; var b=func(num) {a = a+num; return func (num1, num2){a = a+num1+num2; return func(num3){ return a+ num3;}; };};
+```
+The structure of the tree is crazy complex, I don't know why should we come out this idear, it is just like shooting on my head instead of my feet, following is the key part of the tree:
+
+
+![截屏2024-07-08 00 03 09](https://github.com/wycl16514/dragonscript-function-call/assets/7506958/4cea7f15-03c7-4249-a341-9ad6735efecc)
+
+The key here is the first call has a name b, then it has two descendant call with name anonymous_call, this will help us to do the evaluation, in runtime.js, we do the following:
+```js
+export default class RunTime {
+    constructor() {
+    ....
+    this.returned_call = undefined
+    }
+getAnonymousCall = () => {
+        const funcRoot = this.returned_call
+        this.returned_call = undefined
+        return funcRoot
+    }
+
+    addAnonymousCall = (funcRoot) => {
+        this.returned_call = funcRoot
+    }
+```
+In aboved code, we use the field returned_call to save the root node of function that is being returned, and the getAnonymousCall will return this object and set it back to undefined, and 
+addAnonymousCall will used to set this field.
+
+in intepreter.js we change the code as following:
+```js
+visitCallNode = (parent, node) => {
+        //get the function name
+        const callName = node.attributes.values
+        let funcRoot = undefined
+        if (callName !== "anonymous_call") {
+            funcRoot = this.runTime.getFunction(callName)
+        } else {
+            funcRoot = this.runTime.getAnonymousCall()
+        }
+
+        if (!funcRoot) {
+            //the name of calling may be an identifier
+            //since annonymous function can be assigned to identifier
+            const val = this.runTime.getVariable(callName)
+            //need to make sure the variable assigned with function
+            if (val.type !== "func") {
+                throw new Error("can not call on variable never assigend with function")
+            }
+            funcRoot = val.value
+        }
+
+        if (funcRoot) {
+            this.runTime.addCallMap()
+            this.runTime.addLocalEnv()
+            this.inFunc += 1
+
+            this.fillCallParams(funcRoot, node)
+            //evaluate the body of the function
+            funcRoot.children[1].accept(this)
+
+            let evalRes = funcRoot.evalRes
+            /*
+            if the evalRes dosen't have is_return field, then we set the return
+            value of function to nil
+            */
+            if (!evalRes["is_return"]) {
+                evalRes = {
+                    type: "NIL",
+                    value: "null"
+                }
+            }
+            node.evalRes = evalRes
+            //if the returned is function add it to run time
+            if (evalRes.type === "func") {
+                this.runTime.addAnonymousCall(evalRes.value)
+            }
+
+            this.runTime.removeLocalEnv()
+            this.runTime.removeCallMap()
+            this.inFunc -= 1
+        }
+
+
+        this.attachEvalResult(parent, node)
+    }
+
+```
+In the aboved code, when we get returned value from a function call, we need to check whether it is returning a function, if it is, we add the root node of the given function to run time, and
+when we visit a call node and the name of the node is anoymous_call, then we get the root node from run time. After having the code aboved, run the test case and make sure it passes.
+
+It is time to look at some error case for function chain call:
+```js
+ it("should not allow chain call if return is not function", ()=> {
+        let code = `
+        var a = func (b) {return b+1;};
+        a(1)();
+        `
+
+        let codeToExecute = ()=> {
+            let root = createParsingTree(code)
+            let intepreter = new Intepreter()
+            root.accept(intepreter)
+        }
+
+        expect(codeToExecute).toThrow()
+    })
+```
+Run the case aboved and make sure it can be passed, and let's try the last case:
+```js
+ it("should allow returned function to be assigned", () => {
+        let code = `
+        var a = func (b) {return func (c) {return c+b;};};
+        var b = a(1);
+        var c = b(2);
+        print(c);
+        `
+
+        let root = createParsingTree(code)
+        let intepreter = new Intepreter()
+        root.accept(intepreter)
+        console = intepreter.runTime.console
+        expect(console.length).toEqual(1)
+        expect(console[0]).toEqual(3)
+    })
+```
+I randomly come out with this case and I though it should be easy to make it passes, but when I dive deep into it, I found it is totally a new difficult topic, let's leaving it for next charpter!
